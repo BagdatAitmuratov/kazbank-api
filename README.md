@@ -1,93 +1,81 @@
 # KazBank Transaction API
 
-Flask + PostgreSQL (psycopg3) REST API. CSCI2204 Database Management Systems, KBTU Fall 2026.
+Flask and PostgreSQL (psycopg3) REST API. CSCI2204 Database Management Systems, KBTU Fall 2026.
 
-## Мүмкіндіктері
+## Features
 
-- Shared `ConnectionPool` (min=2, max=8), пул қосымша іске қосылғанда бір рет жасалады
-- Барлық сұраныс параметрленген (`%s`), SQL injection-нан қорғалған
-- `POST /transfer`: атомарлы, `SERIALIZABLE`, `SAVEPOINT`, deadlock-қа қарсы тәртіпті құлыптау (кіші `account_id` бірінші) және `SerializationFailure` кезінде retry
-- Қателер: `UniqueViolation` → 409, `NotNullViolation` → 400, `OperationalError` → 503
+- Shared `ConnectionPool` (min=2, max=8), created once when the app starts.
+- All queries use parameters (`%s`) to prevent SQL injection.
+- `POST /transfer`: atomic, uses `SERIALIZABLE` isolation, `SAVEPOINT`, ordered locking to prevent deadlocks (smaller `account_id` first), and retry on `SerializationFailure`.
+- Error handling: `UniqueViolation` → 409, `NotNullViolation` → 400, `OperationalError` → 503.
 
-## Орнату
+## Installation
 
-Қажет: Python 3.10+, PostgreSQL 15+.
+Requirements: Python 3.10+, PostgreSQL 15+.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+    python -m venv .venv
+    source .venv/bin/activate        # Windows: .venv\Scripts\activate
+    pip install -r requirements.txt
 
-`.env.example` файлын `.env` деп көшіріп, құпия сөзді жаз:
+Copy `.env.example` to `.env` and add your password:
 
-```
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/kazbank
-```
+    DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/kazbank
 
-Базаны жаса және схеманы толтыр:
+Create the database and run setup:
 
-```bash
-psql -U postgres -c "CREATE DATABASE kazbank;"
-python init_db.py
-```
+    psql -U postgres -c "CREATE DATABASE kazbank;"
+    python init_db.py
 
-Серверді іске қос:
+Run the server:
 
-```bash
-python run.py        # http://127.0.0.1:5000
-```
+    python run.py        # http://127.0.0.1:5000
 
-## Эндпоинттер
+## Endpoints
 
-| Method | URL | Сипаттама | Сәтті |
+| Method | URL | Description | Success Status |
 |---|---|---|---|
-| GET | `/customers` (`?city=Almaty`) | Клиенттер тізімі | 200 |
-| POST | `/customers` | Клиент қосу | 201 |
-| GET | `/accounts?customer_id=1` | Клиент аккаунттары | 200 |
-| GET | `/transactions?account_id=1` | Аккаунт тарихы | 200 |
-| POST | `/transactions` | debit/credit жазу | 201 |
-| POST | `/transfer` | Аккаунттар арасындағы аударым | 200 |
-| GET | `/health` | Пул статистикасы | 200 |
+| GET | `/customers` (`?city=Almaty`) | List all customers | 200 |
+| POST | `/customers` | Add a new customer | 201 |
+| GET | `/accounts?customer_id=1` | Get customer accounts | 200 |
+| GET | `/transactions?account_id=1` | Get transaction history | 200 |
+| POST | `/transactions` | Record debit or credit | 201 |
+| POST | `/transfer` | Transfer money between accounts | 200 |
+| GET | `/health` | Check pool status | 200 |
 
-## curl мысалдары
+## cURL Examples
 
-```bash
-curl http://localhost:5000/customers
-curl "http://localhost:5000/customers?city=Almaty"
-curl "http://localhost:5000/accounts?customer_id=1"
-curl "http://localhost:5000/transactions?account_id=1"
+    curl http://localhost:5000/customers
+    curl "http://localhost:5000/customers?city=Almaty"
+    curl "http://localhost:5000/accounts?customer_id=1"
+    curl "http://localhost:5000/transactions?account_id=1"
 
-curl -X POST http://localhost:5000/customers \
-  -H "Content-Type: application/json" \
-  -d '{"full_name": "Test User", "city": "Almaty", "email": "test@example.kz"}'
+    curl -X POST http://localhost:5000/customers \
+      -H "Content-Type: application/json" \
+      -d '{"full_name": "Test User", "city": "Almaty", "email": "test@example.kz"}'
 
-curl -X POST http://localhost:5000/transactions \
-  -H "Content-Type: application/json" \
-  -d '{"account_id": 1, "amount": 1000, "tx_type": "credit"}'
+    curl -X POST http://localhost:5000/transactions \
+      -H "Content-Type: application/json" \
+      -d '{"account_id": 1, "amount": 1000, "tx_type": "credit"}'
 
-curl -X POST http://localhost:5000/transfer \
-  -H "Content-Type: application/json" \
-  -d '{"from_account": 1, "to_account": 2, "amount": 500}'
+    curl -X POST http://localhost:5000/transfer \
+      -H "Content-Type: application/json" \
+      -d '{"from_account": 1, "to_account": 2, "amount": 500}'
 
-curl http://localhost:5000/health
-```
+    curl http://localhost:5000/health
 
-Windows PowerShell-де JSON тырнақшалары дұрыс өтпейді. JSON-ды файлға жазып, `curl.exe ... --data "@body.json"` қолдан.
+*Note for Windows PowerShell:* JSON quotes can cause issues. Use `curl.exe ... --data "@body.json"` with a JSON file instead.
 
-## Қате кодтары
+## Error Codes
 
-| Код | Қашан |
+| Code | When it happens |
 |---|---|
-| 400 | Қате енгізу (өріс жоқ, қате `tx_type`, жеткіліксіз қаражат, бірдей аккаунттар) |
-| 404 | Аккаунт табылмады |
-| 409 | Қайталанған email / `Concurrent update` (retry таусылғанда) |
-| 503 | Дерекқор қолжетімсіз |
+| 400 | Bad input (missing fields, wrong type, low balance, same accounts) |
+| 404 | Account not found |
+| 409 | Duplicate email / Concurrent update (retries failed) |
+| 503 | Database is down |
 
-## Тестілеу
+## Testing
 
-```bash
-python test_api.py        # endpoint-тер және SQL injection
-python test_transfer.py   # аударым және 20 параллель сұраныс
-python load_test.py       # пулдың қайта қолданылуы
-```
+    python test_api.py        # Test endpoints and SQL injection
+    python test_transfer.py   # Test transfers and 20 parallel requests
+    python load_test.py       # Test connection pool reuse
