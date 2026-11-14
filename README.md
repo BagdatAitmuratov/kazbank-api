@@ -42,7 +42,7 @@ Run the server:
 | POST | `/transfer` | Transfer money between accounts | 200 |
 | GET | `/health` | Check pool status | 200 |
 
-## cURL Examples
+## cURL Examples (Linux / macOS / Git Bash)
 
     curl http://localhost:5000/customers
     curl "http://localhost:5000/customers?city=Almaty"
@@ -62,6 +62,14 @@ Run the server:
       -d '{"from_account": 1, "to_account": 2, "amount": 500}'
 
     curl http://localhost:5000/health
+
+## Windows PowerShell Examples
+
+    Invoke-RestMethod -Uri "http://localhost:5000/customers" -Method Post -ContentType "application/json" -Body '{"full_name": "Test User", "city": "Almaty", "email": "test@example.kz"}'
+
+    Invoke-RestMethod -Uri "http://localhost:5000/transactions" -Method Post -ContentType "application/json" -Body '{"account_id": 1, "amount": 1000, "tx_type": "credit"}'
+
+    Invoke-RestMethod -Uri "http://localhost:5000/transfer" -Method Post -ContentType "application/json" -Body '{"from_account": 1, "to_account": 2, "amount": 500}'
 
 *Note for Windows PowerShell:* JSON quotes can cause issues. Use `curl.exe ... --data "@body.json"` with a JSON file instead.
 
